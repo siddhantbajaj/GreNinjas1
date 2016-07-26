@@ -4,6 +4,10 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -18,7 +22,22 @@ import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.AppCompatImageView;
+import android.util.Base64;
 import android.util.Log;
+
+import com.facebook.AccessToken;
+import com.facebook.AccessTokenTracker;
+import com.facebook.CallbackManager;
+import com.facebook.FacebookCallback;
+import com.facebook.FacebookException;
+import com.facebook.FacebookSdk;
+import com.facebook.Profile;
+import com.facebook.ProfileTracker;
+import com.facebook.appevents.AppEventsLogger;
+import com.facebook.login.LoginManager;
+import com.facebook.login.LoginResult;
+import com.facebook.login.widget.LoginButton;
+
 import android.view.LayoutInflater;
 import android.view.View;
 import android.support.design.widget.NavigationView;
@@ -37,7 +56,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.List;
+
+import static com.example.siddhant.greninjas.R.layout.login_dialog;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
@@ -53,6 +77,9 @@ public class MainActivity extends AppCompatActivity
     private static final int SELECT_PICTURE = 100;
     Uri selectedImageUri;
     TextView name;
+    CallbackManager callbackManager;
+    AccessTokenTracker accessTokenTracker;
+    ProfileTracker profileTracker;
     android.support.v7.widget.AppCompatImageView userImage;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,6 +87,58 @@ public class MainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(
+                    getPackageName(), PackageManager.GET_SIGNATURES);
+            for (Signature signature : info.signatures) {
+                MessageDigest md = MessageDigest.getInstance("SHA");
+                md.update(signature.toByteArray());
+                Log.d("KeyHash:", Base64.encodeToString(md.digest(), Base64.DEFAULT));
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+        } catch (NoSuchAlgorithmException e) {
+        }
+        FacebookSdk.sdkInitialize(getApplicationContext());
+        AppEventsLogger.activateApp(this);
+        callbackManager = CallbackManager.Factory.create();
+        LoginManager.getInstance().registerCallback(callbackManager,
+                new FacebookCallback<LoginResult>() {
+                    @Override
+                    public void onSuccess(LoginResult loginResult) {
+                        // App code
+                    }
+
+                    @Override
+                    public void onCancel() {
+                        // App code
+                    }
+
+                    @Override
+                    public void onError(FacebookException exception) {
+                        // App code
+                    }
+                });
+        LoginManager.getInstance().logInWithReadPermissions(this, Arrays.asList("public_profile"));
+        accessTokenTracker = new AccessTokenTracker() {
+            @Override
+            protected void onCurrentAccessTokenChanged(
+                    AccessToken oldAccessToken,
+                    AccessToken currentAccessToken) {
+                // Set the access token using
+                // currentAccessToken when it's loaded or set.
+            }
+        };
+        // If the access token is available already assign it.
+        AccessToken accessToken = AccessToken.getCurrentAccessToken();
+         profileTracker = new ProfileTracker() {
+            @Override
+            protected void onCurrentProfileChanged(
+                    Profile oldProfile,
+                    Profile currentProfile) {
+                // App code
+            }
+        };
+
         //Shared prefrence
        final SharedPreferences sp=getSharedPreferences("Gre Ninjas", Context.MODE_PRIVATE);
        final SharedPreferences.Editor editor=sp.edit();
@@ -78,7 +157,7 @@ public class MainActivity extends AppCompatActivity
         {
             AlertDialog.Builder builder=new AlertDialog.Builder(this);
             builder.setTitle("LOGIN");
-           final View v= getLayoutInflater().inflate(R.layout.login_dialog,null);
+           final View v= getLayoutInflater().inflate(login_dialog,null);
             builder.setView(v);
             builder.setCancelable(false);
             builder.setPositiveButton("Done", new DialogInterface.OnClickListener() {
@@ -86,6 +165,25 @@ public class MainActivity extends AppCompatActivity
                 public void onClick(DialogInterface dialog, int which) {
                     EditText username=(EditText) v.findViewById(R.id.username);
                     EditText password=(EditText) v.findViewById(R.id.password);
+                    LoginButton loginButton=(LoginButton)v.findViewById(R.id.login_button);
+                    loginButton.setReadPermissions("email");
+
+                    loginButton.registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
+                        @Override
+                        public void onSuccess(LoginResult loginResult) {
+                            // App code
+                        }
+
+                        @Override
+                        public void onCancel() {
+                            // App code
+                        }
+
+                        @Override
+                        public void onError(FacebookException exception) {
+                            // App code
+                        }
+                    });
                     editor.putBoolean("isFirst",false);
                     editor.putString("username",String.valueOf(username.getText()));
                     editor.putString("password",String.valueOf(password.getText()));
@@ -183,6 +281,10 @@ public class MainActivity extends AppCompatActivity
 
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
+        //TRYING FB LOGIN
+
+
+
     }
     public void animateFAB(){
 
@@ -222,6 +324,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        callbackManager.onActivityResult(requestCode, resultCode, data);
         final SharedPreferences sp=getSharedPreferences("Gre Ninjas", Context.MODE_PRIVATE);
         final SharedPreferences.Editor editor=sp.edit();
         if (resultCode == RESULT_OK) {if (requestCode == SELECT_PICTURE) {// Get the url from
@@ -264,6 +367,13 @@ public class MainActivity extends AppCompatActivity
         }
         cursor.close();
         return res;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        accessTokenTracker.stopTracking();
+        profileTracker.stopTracking();
     }
 
     @Override
