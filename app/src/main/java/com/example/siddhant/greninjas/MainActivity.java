@@ -61,6 +61,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
 import static com.example.siddhant.greninjas.R.layout.login_dialog;
 
 public class MainActivity extends AppCompatActivity
@@ -85,73 +89,21 @@ public class MainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        FacebookSdk.sdkInitialize(getApplicationContext());
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        try {
-            PackageInfo info = getPackageManager().getPackageInfo(
-                    getPackageName(), PackageManager.GET_SIGNATURES);
-            for (Signature signature : info.signatures) {
-                MessageDigest md = MessageDigest.getInstance("SHA");
-                md.update(signature.toByteArray());
-                Log.d("KeyHash:", Base64.encodeToString(md.digest(), Base64.DEFAULT));
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-        } catch (NoSuchAlgorithmException e) {
-        }
-        FacebookSdk.sdkInitialize(getApplicationContext());
-        AppEventsLogger.activateApp(this);
-        callbackManager = CallbackManager.Factory.create();
-        LoginManager.getInstance().registerCallback(callbackManager,
-                new FacebookCallback<LoginResult>() {
-                    @Override
-                    public void onSuccess(LoginResult loginResult) {
-                        // App code
-                    }
-
-                    @Override
-                    public void onCancel() {
-                        // App code
-                    }
-
-                    @Override
-                    public void onError(FacebookException exception) {
-                        // App code
-                    }
-                });
-        LoginManager.getInstance().logInWithReadPermissions(this, Arrays.asList("public_profile"));
-        accessTokenTracker = new AccessTokenTracker() {
-            @Override
-            protected void onCurrentAccessTokenChanged(
-                    AccessToken oldAccessToken,
-                    AccessToken currentAccessToken) {
-                // Set the access token using
-                // currentAccessToken when it's loaded or set.
-            }
-        };
-        // If the access token is available already assign it.
-        AccessToken accessToken = AccessToken.getCurrentAccessToken();
-         profileTracker = new ProfileTracker() {
-            @Override
-            protected void onCurrentProfileChanged(
-                    Profile oldProfile,
-                    Profile currentProfile) {
-                // App code
-            }
-        };
+        //TRY
 
         //Shared prefrence
-       final SharedPreferences sp=getSharedPreferences("Gre Ninjas", Context.MODE_PRIVATE);
-       final SharedPreferences.Editor editor=sp.edit();
-        //Set Username and userImage
+        final SharedPreferences sp=getSharedPreferences("Gre Ninjas", Context.MODE_PRIVATE);
+        final SharedPreferences.Editor editor=sp.edit();
         navigationView=(NavigationView) findViewById(R.id.nav_view);
         View headerView = navigationView.getHeaderView(0);
         name=(TextView)headerView.findViewById(R.id.name);
-        name.setText(sp.getString("username",null));
+
         userImage=(AppCompatImageView) headerView.findViewById(R.id.Userimage);
-        if(sp.getString("imageUri",null)!=null)
-        {
-            userImage.setImageURI(Uri.parse(sp.getString("imageUri",null)));
-        }
+
+
         Boolean isFirst=sp.getBoolean("isFirst",true);
         if(isFirst==true)
         {
@@ -160,18 +112,82 @@ public class MainActivity extends AppCompatActivity
            final View v= getLayoutInflater().inflate(login_dialog,null);
             builder.setView(v);
             builder.setCancelable(false);
-            builder.setPositiveButton("Done", new DialogInterface.OnClickListener() {
+            final  LoginButton loginButton=(LoginButton)v.findViewById(R.id.login_button);
+            loginButton.setReadPermissions("email");
+            loginButton.setOnClickListener(new View.OnClickListener() {
                 @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    EditText username=(EditText) v.findViewById(R.id.username);
-                    EditText password=(EditText) v.findViewById(R.id.password);
-                    LoginButton loginButton=(LoginButton)v.findViewById(R.id.login_button);
-                    loginButton.setReadPermissions("email");
-
+                public void onClick(View v) {
+                    callbackManager = CallbackManager.Factory.create();
                     loginButton.registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
                         @Override
                         public void onSuccess(LoginResult loginResult) {
-                            // App code
+                            try {
+                                PackageInfo info = getPackageManager().getPackageInfo(
+                                        getPackageName(), PackageManager.GET_SIGNATURES);
+                                for (Signature signature : info.signatures) {
+                                    MessageDigest md = MessageDigest.getInstance("SHA");
+                                    md.update(signature.toByteArray());
+                                    Log.d("KeyHash:", Base64.encodeToString(md.digest(), Base64.DEFAULT));
+                                }
+                            } catch (PackageManager.NameNotFoundException e) {
+                            } catch (NoSuchAlgorithmException e) {
+                            }
+
+                            AppEventsLogger.activateApp(MainActivity.this);
+
+                            LoginManager.getInstance().registerCallback(callbackManager,
+                                    new FacebookCallback<LoginResult>() {
+                                        @Override
+                                        public void onSuccess(LoginResult loginResult) {
+                                            // App code
+                                        }
+
+                                        @Override
+                                        public void onCancel() {
+                                            // App code
+                                        }
+
+                                        @Override
+                                        public void onError(FacebookException exception) {
+                                            // App code
+                                        }
+                                    });
+                            LoginManager.getInstance().logInWithReadPermissions(MainActivity.this, Arrays.asList("public_profile"));
+                            accessTokenTracker = new AccessTokenTracker() {
+                                @Override
+                                protected void onCurrentAccessTokenChanged(
+                                        AccessToken oldAccessToken,
+                                        AccessToken currentAccessToken) {
+                                    // Set the access token using
+                                    // currentAccessToken when it's loaded or set.
+                                }
+                            };
+                            // If the access token is available already assign it.
+                            AccessToken accessToken = AccessToken.getCurrentAccessToken();
+                            profileTracker = new ProfileTracker() {
+                                @Override
+                                protected void onCurrentProfileChanged(
+                                        Profile oldProfile,
+                                        Profile currentProfile) {
+                                    // App code
+                                }
+                            };
+                            GreInterface service_1=FbClient.getService();
+                            Call<FacebookResponse> call_1=service_1.getName("EAAHuSt8rOcoBAFai1zCuKxcIkiKLhuZCJVOmGyrXFrYDURkONVpywVESUDoDszrjJGXLctsBZCKVRZAcziQGNtlRJDiR3n7okIpKAfzD06UN69klyU9ef7AdZBZABsZBBv3ZCLis5UfXYLVLnF0KAZAHJAmqxz3v73lVOIkmdEZC8PKYHo0YEq0fcDiBeb8hzy6HzpR6fl2Y1TZBjDVVjAcaQk","name");
+                            call_1.enqueue(new Callback<FacebookResponse>() {
+                                @Override
+                                public void onResponse(Call<FacebookResponse> call, Response<FacebookResponse> response) {
+                                    editor.putString("fbusername",response.body().getName());
+                                    editor.commit();
+                                    name.setText(response.body().getName());
+                                }
+
+                                @Override
+                                public void onFailure(Call<FacebookResponse> call, Throwable t) {
+                                    Log.i("response","failure");
+
+                                }
+                            });
                         }
 
                         @Override
@@ -183,7 +199,19 @@ public class MainActivity extends AppCompatActivity
                         public void onError(FacebookException exception) {
                             // App code
                         }
+
                     });
+
+                }
+            });
+            builder.setPositiveButton("Done", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(final DialogInterface dialog, int which) {
+                    EditText username=(EditText) v.findViewById(R.id.username);
+                    EditText password=(EditText) v.findViewById(R.id.password);
+
+
+
                     editor.putBoolean("isFirst",false);
                     editor.putString("username",String.valueOf(username.getText()));
                     editor.putString("password",String.valueOf(password.getText()));
@@ -193,6 +221,20 @@ public class MainActivity extends AppCompatActivity
                 }
             });
             builder.create().show();
+        }
+
+        //Set Username and userImage
+        if(sp.getString("fbusername",null)!=null)
+        {
+            name.setText(sp.getString("fbusername",null));
+        }
+        else {
+            name.setText(sp.getString("username", null));
+        }
+
+        if(sp.getString("imageUri",null)!=null)
+        {
+            userImage.setImageURI(Uri.parse(sp.getString("imageUri",null)));
         }
 
         userImage.setOnClickListener(new View.OnClickListener() {
